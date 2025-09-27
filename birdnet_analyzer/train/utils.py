@@ -563,11 +563,94 @@ def train_model(on_epoch_end=None, on_trial_result=None, on_data_load_end=None, 
     try:
         classifier.pop() # Remove activation
 
+        # Prepare representative dataset for INT8 quantization if needed
+        representative_samples = []
+        representative_dataset_func = None
+
+        # Only collect samples if we're actually exporting to TFLite format
+        if cfg.TRAINED_MODEL_OUTPUT_FORMAT in ("tflite", "both") and cfg.TRAINED_MODEL_PRECISION in ("int8", "all"):
+            print("Collecting representative samples for INT8 quantization...", flush=True)
+            max_samples = 100
+            target_length = int(cfg.SAMPLE_RATE * cfg.SIG_LENGTH)
+            train_folders = sorted(utils.list_subdirectories(cfg.TRAIN_DATA_PATH))
+
+            for folder in train_folders[:min(len(train_folders), max_samples)]:  # Limit folders to check
+                if len(representative_samples) >= max_samples:
+                    break
+
+                folder_path = os.path.join(cfg.TRAIN_DATA_PATH, folder)
+                files = sorted(os.listdir(folder_path))
+
+                for filename in files[:min(len(files), 10)]:  # Limit files per folder
+                    if len(representative_samples) >= max_samples:
+                        break
+
+                    if filename.startswith("."):
+                        continue
+                    if filename.rsplit(".", 1)[-1].lower() not in cfg.ALLOWED_FILETYPES:
+                        continue
+
+                    file_path = os.path.join(folder_path, filename)
+                    if not os.path.isfile(file_path):
+                        continue
+
+                    try:
+                        # Load audio file with same preprocessing as training
+                        sig, rate = audio.open_audio_file(
+                            file_path,
+                            sample_rate=cfg.SAMPLE_RATE,
+                            duration=cfg.SIG_LENGTH if cfg.SAMPLE_CROP_MODE == "first" else None,
+                            fmin=cfg.BANDPASS_FMIN,
+                            fmax=cfg.BANDPASS_FMAX,
+                            speed=cfg.AUDIO_SPEED,
+                        )
+
+                        # Crop based on the same mode used for training
+                        if cfg.SAMPLE_CROP_MODE == "center":
+                            segment = audio.crop_center(sig, rate, cfg.SIG_LENGTH)
+                            segments = [segment] if segment.size > 0 else []
+                        elif cfg.SAMPLE_CROP_MODE == "first":
+                            split_segments = audio.split_signal(sig, rate, cfg.SIG_LENGTH, cfg.SIG_OVERLAP, cfg.SIG_MINLEN)
+                            segments = split_segments[:1] if split_segments else []
+                        elif cfg.SAMPLE_CROP_MODE == "smart":
+                            segments = audio.smart_crop_signal(sig, rate, cfg.SIG_LENGTH, cfg.SIG_OVERLAP, cfg.SIG_MINLEN)
+                            segments = segments[:1] if segments else []  # Just take first segment
+                        else:  # segments mode
+                            segments = audio.split_signal(sig, rate, cfg.SIG_LENGTH, cfg.SIG_OVERLAP, cfg.SIG_MINLEN)
+                            segments = segments[:1] if segments else []  # Just take first segment
+
+                        for segment in segments:
+                            if segment.size == 0:
+                                continue
+                            # Ensure correct shape
+                            processed_segment = segment
+                            if processed_segment.shape[-1] != target_length:
+                                processed_segment = audio.crop_center(segment, rate, cfg.SIG_LENGTH)
+
+                            if processed_segment.shape[-1] == target_length:
+                                # Add batch dimension (copy=False avoids unnecessary copy if already float32)
+                                representative_samples.append(np.expand_dims(processed_segment.astype(np.float32, copy=False), axis=0))
+                                break  # Only one segment per file
+
+                    except Exception:
+                        continue
+
+            print(f"Collected {len(representative_samples)} representative samples for INT8 quantization", flush=True)
+
+            def representative_dataset_gen():
+                for sample in representative_samples:
+                    yield [sample]
+
+            # Only pass the function if we have samples
+            representative_dataset_func = representative_dataset_gen if representative_samples else None
+
         if cfg.TRAINED_MODEL_OUTPUT_FORMAT == "both":
             model.save_raven_model(classifier, cfg.CUSTOM_CLASSIFIER, labels, mode=cfg.TRAINED_MODEL_SAVE_MODE)
-            model.save_linear_classifier(classifier, cfg.CUSTOM_CLASSIFIER, labels, mode=cfg.TRAINED_MODEL_SAVE_MODE)
+            model.save_linear_classifier(classifier, cfg.CUSTOM_CLASSIFIER, labels, mode=cfg.TRAINED_MODEL_SAVE_MODE,
+                                        precision=cfg.TRAINED_MODEL_PRECISION, representative_dataset_func=representative_dataset_func)
         elif cfg.TRAINED_MODEL_OUTPUT_FORMAT == "tflite":
-            model.save_linear_classifier(classifier, cfg.CUSTOM_CLASSIFIER, labels, mode=cfg.TRAINED_MODEL_SAVE_MODE)
+            model.save_linear_classifier(classifier, cfg.CUSTOM_CLASSIFIER, labels, mode=cfg.TRAINED_MODEL_SAVE_MODE,
+                                        precision=cfg.TRAINED_MODEL_PRECISION, representative_dataset_func=representative_dataset_func)
         elif cfg.TRAINED_MODEL_OUTPUT_FORMAT == "raven":
             model.save_raven_model(classifier, cfg.CUSTOM_CLASSIFIER, labels, mode=cfg.TRAINED_MODEL_SAVE_MODE)
         else:

@@ -68,6 +68,7 @@ def start_training(
     upsampling_ratio,
     upsampling_mode,
     model_format,
+    model_precision,
     audio_speed,
     progress=gr.Progress(),
 ):
@@ -102,6 +103,7 @@ def start_training(
         upsampling_ratio: Ratio for upsampling underrepresented classes.
         upsampling_mode: Mode for upsampling (repeat, mean, smote).
         model_format: Format to save the trained model (tflite, raven, both).
+        model_precision: Precision for TFLite model export (fp32, fp16, int8, all).
         audio_speed: Speed factor for audio playback.
 
     Returns:
@@ -157,6 +159,7 @@ def start_training(
     cfg.UPSAMPLING_RATIO = min(max(0, upsampling_ratio), 1)
     cfg.UPSAMPLING_MODE = upsampling_mode
     cfg.TRAINED_MODEL_OUTPUT_FORMAT = model_format
+    cfg.TRAINED_MODEL_PRECISION = model_precision
 
     cfg.BANDPASS_FMIN = max(0, min(cfg.SIG_FMAX, int(fmin)))
     cfg.BANDPASS_FMAX = max(cfg.SIG_FMIN, min(cfg.SIG_FMAX, int(fmax)))
@@ -282,6 +285,18 @@ def build_train_tab():
                         info=loc.localize("training-tab-output-format-radio-info"),
                         visible=False,
                     )
+                    output_precision = gr.Radio(
+                        [
+                            ("FP32 (Default, ~58MB)", "fp32"),
+                            ("FP16 (Half precision, ~29MB)", "fp16"),
+                            ("INT8 (Quantized, ~15MB)", "int8"),
+                            (loc.localize("training-tab-output-precision-all"), "all")
+                        ],
+                        value=cfg.TRAINED_MODEL_PRECISION,
+                        label=loc.localize("training-tab-output-precision-radio-label"),
+                        info=loc.localize("training-tab-output-precision-radio-info"),
+                        visible=False,
+                    )
 
                 def select_directory_and_update_tb():
                     dir_name = gu.select_folder(state_key="train-output-dir")
@@ -291,14 +306,27 @@ def build_train_tab():
                             dir_name,
                             gr.Textbox(label=dir_name, visible=True),
                             gr.Radio(visible=True, interactive=True),
+                            gr.Radio(visible=True, interactive=True),
                         )
 
-                    return None, None
+                    return None, None, None, None
 
                 select_classifier_directory_btn.click(
                     select_directory_and_update_tb,
-                    outputs=[output_directory_state, classifier_name, output_format],
+                    outputs=[output_directory_state, classifier_name, output_format, output_precision],
                     show_progress="hidden",
+                )
+
+                # Show/hide precision selection based on output format
+                def on_output_format_change(format_value):
+                    # Show precision selector only for tflite or both formats
+                    return gr.update(visible=(format_value in ["tflite", "both"]))
+
+                output_format.change(
+                    on_output_format_change,
+                    inputs=output_format,
+                    outputs=output_precision,
+                    show_progress="hidden"
                 )
 
         with gr.Row():
@@ -677,6 +705,7 @@ def build_train_tab():
                 upsampling_ratio,
                 upsampling_mode,
                 output_format,
+                output_precision,
                 audio_speed_slider,
             ],
             outputs=[train_history_plot, metrics_table],

@@ -733,6 +733,12 @@ def train_parser():
         choices=["replace", "append"],
         help="Model save mode. 'replace' will overwrite the original classification layer and 'append' will combine the original classification layer with the new one.",
     )
+    parser.add_argument(
+        "--model_precision",
+        default=cfg.TRAINED_MODEL_PRECISION,
+        choices=["fp32", "fp16", "int8", "all"],
+        help="Model precision for TFLite export. 'fp32' is default (no quantization), 'fp16' reduces size by ~50%, 'int8' reduces size by ~75% but requires calibration data. 'all' exports models in all three precisions.",
+    )
     parser.add_argument("--cache_mode", choices=["load", "save"], help="Cache mode. Can be 'load' or 'save'.")
     parser.add_argument("--cache_file", default=cfg.TRAIN_CACHE_FILE, help="Path to cache file.")
     parser.add_argument(

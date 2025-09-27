@@ -22,6 +22,7 @@ def train(
     upsampling_ratio: float = 0.0,
     upsampling_mode: Literal["repeat", "mean", "smote"] = "repeat",
     model_format: Literal["tflite", "raven", "both"] = "tflite",
+    model_precision: Literal["fp32", "fp16", "int8", "all"] = "fp32",
     model_save_mode: Literal["replace", "append"] = "replace",
     cache_mode: Literal["load", "save"] | None = None,
     cache_file: str = "train_cache.npz",
@@ -55,6 +56,7 @@ def train(
         upsampling_ratio (float, optional): Ratio for upsampling underrepresented classes. Defaults to 0.0.
         upsampling_mode (Literal["repeat", "mean", "smote"], optional): Mode for upsampling. Defaults to "repeat".
         model_format (Literal["tflite", "raven", "both"], optional): Format to save the trained model. Defaults to "tflite".
+        model_precision (Literal["fp32", "fp16", "int8", "all"], optional): Model precision for TFLite export. Defaults to "fp32".
         model_save_mode (Literal["replace", "append"], optional): Save mode for the model. Defaults to "replace".
         cache_mode (Literal["load", "save"] | None, optional): Cache mode for training data. Defaults to None.
         cache_file (str, optional): Path to the cache file. Defaults to "train_cache.npz".
@@ -94,6 +96,7 @@ def train(
     cfg.UPSAMPLING_RATIO = upsampling_ratio
     cfg.UPSAMPLING_MODE = upsampling_mode
     cfg.TRAINED_MODEL_OUTPUT_FORMAT = model_format
+    cfg.TRAINED_MODEL_PRECISION = model_precision
     cfg.TRAINED_MODEL_SAVE_MODE = model_save_mode
     cfg.TRAIN_CACHE_MODE = cache_mode
     cfg.TRAIN_CACHE_FILE = cache_file
