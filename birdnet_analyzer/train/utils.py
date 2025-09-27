@@ -563,11 +563,23 @@ def train_model(on_epoch_end=None, on_trial_result=None, on_data_load_end=None, 
     try:
         classifier.pop() # Remove activation
 
+        # Create a representative dataset function for INT8 quantization if needed
+        def representative_dataset_gen():
+            # Use a subset of training data as representative samples
+            # Taking up to 100 samples for calibration
+            num_samples = min(100, len(x_train))
+            for i in range(num_samples):
+                # Get sample and preprocess it
+                sample = x_train[i:i+1]
+                yield [sample.astype(np.float32)]
+
         if cfg.TRAINED_MODEL_OUTPUT_FORMAT == "both":
             model.save_raven_model(classifier, cfg.CUSTOM_CLASSIFIER, labels, mode=cfg.TRAINED_MODEL_SAVE_MODE)
-            model.save_linear_classifier(classifier, cfg.CUSTOM_CLASSIFIER, labels, mode=cfg.TRAINED_MODEL_SAVE_MODE)
+            model.save_linear_classifier(classifier, cfg.CUSTOM_CLASSIFIER, labels, mode=cfg.TRAINED_MODEL_SAVE_MODE,
+                                        precision=cfg.TRAINED_MODEL_PRECISION, representative_dataset_func=representative_dataset_gen)
         elif cfg.TRAINED_MODEL_OUTPUT_FORMAT == "tflite":
-            model.save_linear_classifier(classifier, cfg.CUSTOM_CLASSIFIER, labels, mode=cfg.TRAINED_MODEL_SAVE_MODE)
+            model.save_linear_classifier(classifier, cfg.CUSTOM_CLASSIFIER, labels, mode=cfg.TRAINED_MODEL_SAVE_MODE,
+                                        precision=cfg.TRAINED_MODEL_PRECISION, representative_dataset_func=representative_dataset_gen)
         elif cfg.TRAINED_MODEL_OUTPUT_FORMAT == "raven":
             model.save_raven_model(classifier, cfg.CUSTOM_CLASSIFIER, labels, mode=cfg.TRAINED_MODEL_SAVE_MODE)
         else:

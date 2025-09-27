@@ -195,6 +195,10 @@ TRAINED_MODEL_OUTPUT_FORMAT: str = "tflite"
 # Model save mode (replace or append new classifier)
 TRAINED_MODEL_SAVE_MODE: str = "replace"
 
+# Model precision for TFLite export (fp32, fp16, int8, all)
+# 'all' will export models in all three precisions
+TRAINED_MODEL_PRECISION: str = "fp32"
+
 # Cache settings
 TRAIN_CACHE_MODE: str | None = None
 TRAIN_CACHE_FILE: str = "train_cache.npz"

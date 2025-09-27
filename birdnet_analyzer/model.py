@@ -857,38 +857,76 @@ def combine_models(classifier, mode: Literal["replace", "append"], add_sigmoid=F
     return keras.Model(inputs=inputs, outputs=output, name="basic")
 
 
-def save_linear_classifier(classifier, model_path: str, labels: list[str], mode: Literal["replace", "append"] = "replace"):
+def save_linear_classifier(classifier, model_path: str, labels: list[str], mode: Literal["replace", "append"] = "replace", precision: str = "fp32", representative_dataset_func=None):
     """Saves the classifier as a tflite model, as well as the used labels in a .txt.
 
     Args:
         classifier: The custom classifier.
         model_path: Path the model will be saved at.
         labels: List of labels used for the classifier.
+        mode: Model save mode - "replace" or "append".
+        precision: Model precision - "fp32", "fp16", "int8", or "all".
+        representative_dataset_func: Function that provides representative data for INT8 quantization.
     """
     combined_model = combine_models(classifier, mode=mode, add_sigmoid=False)
 
     # Append .tflite if necessary
-    if not model_path.endswith(".tflite"):
-        model_path += ".tflite"
+    base_path = model_path
+    if not base_path.endswith(".tflite"):
+        base_path += ".tflite"
 
     # Make folders
-    os.makedirs(os.path.dirname(model_path), exist_ok=True)
+    os.makedirs(os.path.dirname(base_path), exist_ok=True)
 
-    # Save model as tflite
-    converter = tf.lite.TFLiteConverter.from_keras_model(combined_model)
-    tflite_model: bytes = converter.convert()
+    # Determine which precisions to export
+    precisions_to_export = []
+    if precision == "all":
+        precisions_to_export = ["fp32", "fp16", "int8"]
+    else:
+        precisions_to_export = [precision]
 
-    with open(model_path, "wb") as f:
-        f.write(tflite_model)
+    # Export model in each precision
+    for prec in precisions_to_export:
+        # Determine output path based on precision
+        if precision == "all":
+            # Add precision suffix when exporting multiple versions
+            model_output_path = base_path.replace(".tflite", f"_{prec}.tflite")
+        else:
+            # Use base path for single precision export
+            model_output_path = base_path
+
+        # Create converter
+        converter = tf.lite.TFLiteConverter.from_keras_model(combined_model)
+
+        # Configure converter based on precision
+        if prec == "fp16":
+            converter.optimizations = [tf.lite.Optimize.DEFAULT]
+            converter.target_spec.supported_types = [tf.float16]
+        elif prec == "int8":
+            converter.optimizations = [tf.lite.Optimize.DEFAULT]
+            # For INT8 quantization, we need a representative dataset
+            if representative_dataset_func:
+                converter.representative_dataset = representative_dataset_func
+            else:
+                # Fall back to dynamic range quantization
+                print(f"Warning: No representative dataset provided for INT8 quantization. Using dynamic range quantization instead.")
+        # fp32 is default, no additional configuration needed
+
+        # Convert and save model
+        tflite_model: bytes = converter.convert()
+        with open(model_output_path, "wb") as f:
+            f.write(tflite_model)
+
+        print(f"Saved {prec} model to {model_output_path}")
 
     if mode == "append":
         labels = [*utils.read_lines(os.path.join(SCRIPT_DIR, cfg.LABELS_FILE)), *labels]
 
-    # Save labels
-    with open(model_path.replace(".tflite", "_Labels.txt"), "w", encoding="utf-8") as f:
+    # Save labels and params (use base path for these files)
+    with open(base_path.replace(".tflite", "_Labels.txt"), "w", encoding="utf-8") as f:
         f.writelines(label + "\n" for label in labels)
 
-    save_model_params(model_path.replace(".tflite", "_Params.csv"))
+    save_model_params(base_path.replace(".tflite", "_Params.csv"))
 
 
 def save_raven_model(classifier, model_path: str, labels: list[str], mode: Literal["replace", "append"] = "replace"):
