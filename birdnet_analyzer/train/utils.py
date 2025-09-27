@@ -565,7 +565,10 @@ def train_model(on_epoch_end=None, on_trial_result=None, on_data_load_end=None, 
 
         # Prepare representative dataset for INT8 quantization if needed
         representative_samples = []
-        if cfg.TRAINED_MODEL_PRECISION in ("int8", "all"):
+        representative_dataset_func = None
+
+        # Only collect samples if we're actually exporting to TFLite format
+        if cfg.TRAINED_MODEL_OUTPUT_FORMAT in ("tflite", "both") and cfg.TRAINED_MODEL_PRECISION in ("int8", "all"):
             print("Collecting representative samples for INT8 quantization...", flush=True)
             max_samples = 100
             target_length = int(cfg.SAMPLE_RATE * cfg.SIG_LENGTH)
@@ -625,8 +628,8 @@ def train_model(on_epoch_end=None, on_trial_result=None, on_data_load_end=None, 
                                 processed_segment = audio.crop_center(segment, rate, cfg.SIG_LENGTH)
 
                             if processed_segment.shape[-1] == target_length:
-                                # Add batch dimension
-                                representative_samples.append(np.expand_dims(processed_segment.astype(np.float32), axis=0))
+                                # Add batch dimension (copy=False avoids unnecessary copy if already float32)
+                                representative_samples.append(np.expand_dims(processed_segment.astype(np.float32, copy=False), axis=0))
                                 break  # Only one segment per file
 
                     except Exception:
@@ -634,12 +637,12 @@ def train_model(on_epoch_end=None, on_trial_result=None, on_data_load_end=None, 
 
             print(f"Collected {len(representative_samples)} representative samples for INT8 quantization", flush=True)
 
-        def representative_dataset_gen():
-            for sample in representative_samples:
-                yield [sample]
+            def representative_dataset_gen():
+                for sample in representative_samples:
+                    yield [sample]
 
-        # Only pass the function if we have samples
-        representative_dataset_func = representative_dataset_gen if representative_samples else None
+            # Only pass the function if we have samples
+            representative_dataset_func = representative_dataset_gen if representative_samples else None
 
         if cfg.TRAINED_MODEL_OUTPUT_FORMAT == "both":
             model.save_raven_model(classifier, cfg.CUSTOM_CLASSIFIER, labels, mode=cfg.TRAINED_MODEL_SAVE_MODE)
