@@ -620,12 +620,13 @@ def train_model(on_epoch_end=None, on_trial_result=None, on_data_load_end=None, 
                             if segment.size == 0:
                                 continue
                             # Ensure correct shape
-                            if segment.shape[-1] != target_length:
-                                segment = audio.crop_center(segment, rate, cfg.SIG_LENGTH)
+                            processed_segment = segment
+                            if processed_segment.shape[-1] != target_length:
+                                processed_segment = audio.crop_center(segment, rate, cfg.SIG_LENGTH)
 
-                            if segment.shape[-1] == target_length:
+                            if processed_segment.shape[-1] == target_length:
                                 # Add batch dimension
-                                representative_samples.append(np.expand_dims(segment.astype(np.float32), axis=0))
+                                representative_samples.append(np.expand_dims(processed_segment.astype(np.float32), axis=0))
                                 break  # Only one segment per file
 
                     except Exception:
