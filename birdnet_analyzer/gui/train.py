@@ -309,7 +309,7 @@ def build_train_tab():
                             gr.Radio(visible=True, interactive=True),
                         )
 
-                    return None, None, None
+                    return None, None, None, None
 
                 select_classifier_directory_btn.click(
                     select_directory_and_update_tb,

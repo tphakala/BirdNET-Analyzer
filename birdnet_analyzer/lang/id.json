@@ -317,7 +317,7 @@
     "training-tab-output-format-both": "keduanya",
     "training-tab-output-format-radio-info": "Format klasifikator yang telah dilatih.",
     "training-tab-output-format-radio-label": "Format output model",
-    "training-tab-output-precision-all": "Semua presisi",
+    "training-tab-output-precision-all": "Semua tingkat presisi",
     "training-tab-output-precision-radio-info": "Presisi model untuk ekspor TFLite. Presisi lebih rendah mengurangi ukuran model tetapi dapat mempengaruhi akurasi.",
     "training-tab-output-precision-radio-label": "Presisi model",
     "training-tab-select-output-button-label": "Pilih klasifikator output",
