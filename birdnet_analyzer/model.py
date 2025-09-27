@@ -857,7 +857,14 @@ def combine_models(classifier, mode: Literal["replace", "append"], add_sigmoid=F
     return keras.Model(inputs=inputs, outputs=output, name="basic")
 
 
-def save_linear_classifier(classifier, model_path: str, labels: list[str], mode: Literal["replace", "append"] = "replace", precision: str = "fp32", representative_dataset_func=None):
+def save_linear_classifier(
+    classifier,
+    model_path: str,
+    labels: list[str],
+    mode: Literal["replace", "append"] = "replace",
+    precision: str = "fp32",
+    representative_dataset_func=None,
+):
     """Saves the classifier as a tflite model, as well as the used labels in a .txt.
 
     Args:
@@ -909,7 +916,7 @@ def save_linear_classifier(classifier, model_path: str, labels: list[str], mode:
                 converter.representative_dataset = representative_dataset_func
             else:
                 # Fall back to dynamic range quantization
-                print(f"Warning: No representative dataset provided for INT8 quantization. Using dynamic range quantization instead.")
+                print("Warning: No representative dataset provided for INT8 quantization. Using dynamic range quantization instead.")
         # fp32 is default, no additional configuration needed
 
         # Convert and save model
